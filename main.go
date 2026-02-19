@@ -101,6 +101,23 @@ func handleReset(s *state, cmd command) error {
 	return s.db.DeleteAllUsers(ctx)
 }
 
+func handleUsers(s *state, cmd command) error {
+	ctx := context.Background()
+	users, err := s.db.GetUsers(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, user := range users {
+		if s.cfg.CurrentUserName == user.Name {
+			fmt.Printf("* %s (current)\n", user.Name)
+		} else {
+			fmt.Printf("* %s\n", user.Name)
+		}
+	}
+	return nil
+}
+
 func main() {
 	cfg, err := config.Read()
 	if err != nil {
@@ -123,6 +140,7 @@ func main() {
 	appCommands.register("login", handleLogin)
 	appCommands.register("register", handleRegister)
 	appCommands.register("reset", handleReset)
+	appCommands.register("users", handleUsers)
 
 	args := os.Args
 	if len(args) < 2 {
