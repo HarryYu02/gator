@@ -169,10 +169,39 @@ func handleFeeds(s *state, cmd command) error {
 		fmt.Println("--------------------")
 		fmt.Printf("Feed name: %s\n", feed.Name)
 		fmt.Printf("Feed url: %s\n", feed.Url)
-		fmt.Printf("Feed author: %s\n", feed.Name_2)
+		fmt.Printf("Feed creator: %s\n", feed.Name_2)
 		fmt.Println("--------------------")
 	}
 
+	return nil
+}
+
+func handleFollow(s *state, cmd command) error {
+	if len(cmd.args) < 1 {
+		return fmt.Errorf("command follow expects a url\n")
+	}
+	url := cmd.args[0]
+
+	ctx := context.Background()
+	currentUser, err := s.db.GetUser(ctx, s.cfg.CurrentUserName)
+	if err != nil {
+		return err
+	}
+	feedToFollow, err := s.db.GetFeedByUrl(ctx, url)
+	if err != nil {
+		return err
+	}
+	feedFollow, err := s.db.CreateFeedFollow(ctx, database.CreateFeedFollowParams{
+		ID: uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		UserID: currentUser.ID,
+		FeedID: feedToFollow.ID,
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("feedFollow: %v\n", feedFollow)
 	return nil
 }
 
@@ -202,6 +231,7 @@ func main() {
 	appCommands.register("agg", handleAgg)
 	appCommands.register("addfeed", handleAddFeed)
 	appCommands.register("feeds", handleFeeds)
+	appCommands.register("follow", handleFollow)
 
 	args := os.Args
 	if len(args) < 2 {
