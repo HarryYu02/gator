@@ -226,6 +226,27 @@ func handleFollowing(s *state, cmd command, user database.User) error {
 	return nil
 }
 
+func handleUnfollow(s *state, cmd command, user database.User) error {
+	if len(cmd.args) < 1 {
+		return fmt.Errorf("command unfollow expects a url\n")
+	}
+	url := cmd.args[0]
+
+	ctx := context.Background()
+	feedToUnfollow, err := s.db.GetFeedByUrl(ctx, url)
+	if err != nil {
+		return err
+	}
+	err = s.db.DeleteFeedFollow(ctx, database.DeleteFeedFollowParams{
+		UserID: user.ID,
+		FeedID: feedToUnfollow.ID,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func main() {
 	cfg, err := config.Read()
 	if err != nil {
@@ -254,6 +275,7 @@ func main() {
 	appCommands.register("feeds", handleFeeds)
 	appCommands.register("follow", middlewareLoggedIn(handleFollow))
 	appCommands.register("following", middlewareLoggedIn(handleFollowing))
+	appCommands.register("unfollow", middlewareLoggedIn(handleUnfollow))
 
 	args := os.Args
 	if len(args) < 2 {
