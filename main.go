@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/harryyu02/gator/internal/config"
 	"github.com/harryyu02/gator/internal/database"
+	"github.com/harryyu02/gator/internal/rss"
 
 	_ "github.com/lib/pq"
 )
@@ -70,16 +71,16 @@ func handleLogin(s *state, cmd command) error {
 
 func handleRegister(s *state, cmd command) error {
 	if len(cmd.args) == 0 {
-		return fmt.Errorf("command login expects a username\n")
+		return fmt.Errorf("command register expects a username\n")
 	}
 	username := cmd.args[0]
 
 	ctx := context.Background()
 	user, err := s.db.CreateUser(ctx, database.CreateUserParams{
-		ID: uuid.New(),
+		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		Name: username,
+		Name:      username,
 	})
 	if err != nil {
 		return err
@@ -118,6 +119,63 @@ func handleUsers(s *state, cmd command) error {
 	return nil
 }
 
+func handleAgg(s *state, cmd command) error {
+	ctx := context.Background()
+	feed, err := rss.FetchFeed(ctx, "https://www.wagslane.dev/index.xml")
+	if err != nil {
+		return err
+	}
+	fmt.Printf("feed: %v\n", *feed)
+
+	return nil
+}
+
+func handleAddFeed(s *state, cmd command) error {
+	if len(cmd.args) < 2 {
+		return fmt.Errorf("command addfeed expects a name and a url\n")
+	}
+	name := cmd.args[0]
+	url := cmd.args[1]
+
+	ctx := context.Background()
+	currentUser, err := s.db.GetUser(ctx, s.cfg.CurrentUserName)
+	if err != nil {
+		return err
+	}
+	addedFeed, err := s.db.CreateFeed(ctx, database.CreateFeedParams{
+		ID: uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Name: name,
+		Url: url,
+		UserID: currentUser.ID,
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("addedFeed: %v\n", addedFeed)
+	return nil
+}
+
+func handleFeeds(s *state, cmd command) error {
+	ctx := context.Background()
+	feeds, err := s.db.GetFeedsWithUsers(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, feed := range feeds {
+		fmt.Println("--------------------")
+		fmt.Printf("Feed name: %s\n", feed.Name)
+		fmt.Printf("Feed url: %s\n", feed.Url)
+		fmt.Printf("Feed author: %s\n", feed.Name_2)
+		fmt.Println("--------------------")
+	}
+
+	return nil
+}
+
 func main() {
 	cfg, err := config.Read()
 	if err != nil {
@@ -141,6 +199,9 @@ func main() {
 	appCommands.register("register", handleRegister)
 	appCommands.register("reset", handleReset)
 	appCommands.register("users", handleUsers)
+	appCommands.register("agg", handleAgg)
+	appCommands.register("addfeed", handleAddFeed)
+	appCommands.register("feeds", handleFeeds)
 
 	args := os.Args
 	if len(args) < 2 {
