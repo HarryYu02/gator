@@ -11,3 +11,13 @@ RETURNING
     *,
     (SELECT name FROM users u WHERE feed_follows.user_id = u.id) AS user_name,
     (SELECT name FROM feeds f WHERE feed_follows.feed_id = f.id) AS feed_name;
+
+-- name: GetFeedFollowsForUser :many
+SELECT
+    *,
+    u.name AS user_name,
+    f.name AS feed_name
+FROM feed_follows ff
+JOIN feeds f ON ff.feed_id = f.id
+JOIN users u ON f.user_id = u.id
+WHERE ff.user_id = $1;

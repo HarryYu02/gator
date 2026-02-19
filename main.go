@@ -142,7 +142,7 @@ func handleAddFeed(s *state, cmd command) error {
 	if err != nil {
 		return err
 	}
-	addedFeed, err := s.db.CreateFeed(ctx, database.CreateFeedParams{
+	_, err = s.db.CreateFeed(ctx, database.CreateFeedParams{
 		ID: uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -154,7 +154,10 @@ func handleAddFeed(s *state, cmd command) error {
 		return err
 	}
 
-	fmt.Printf("addedFeed: %v\n", addedFeed)
+	handleFollow(s, command{
+		name: "follow",
+		args: []string{url},
+	})
 	return nil
 }
 
@@ -201,7 +204,30 @@ func handleFollow(s *state, cmd command) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("feedFollow: %v\n", feedFollow)
+	fmt.Println("--------------------")
+	fmt.Printf("Feed name: %s\n", feedFollow.FeedName)
+	fmt.Printf("Feed creator: %s\n", feedFollow.UserName)
+	fmt.Println("--------------------")
+	return nil
+}
+
+func handleFollowing(s *state, cmd command) error {
+	ctx := context.Background()
+	currentUser, err := s.db.GetUser(ctx, s.cfg.CurrentUserName)
+	if err != nil {
+		return err
+	}
+
+	feeds, err := s.db.GetFeedFollowsForUser(ctx, currentUser.ID)
+	if err != nil {
+		return err
+	}
+	for _, feed := range feeds {
+		fmt.Println("--------------------")
+		fmt.Printf("Feed name: %s\n", feed.FeedName)
+		fmt.Printf("Feed creator: %s\n", feed.UserName)
+		fmt.Println("--------------------")
+	}
 	return nil
 }
 
@@ -232,6 +258,7 @@ func main() {
 	appCommands.register("addfeed", handleAddFeed)
 	appCommands.register("feeds", handleFeeds)
 	appCommands.register("follow", handleFollow)
+	appCommands.register("following", handleFollowing)
 
 	args := os.Args
 	if len(args) < 2 {
