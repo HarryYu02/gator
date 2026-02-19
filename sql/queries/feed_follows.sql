@@ -1,16 +1,22 @@
 -- name: CreateFeedFollow :one
-INSERT INTO feed_follows (id, created_at, updated_at, user_id, feed_id)
-VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5
+WITH inserted_feed_follow AS (
+    INSERT INTO feed_follows (id, created_at, updated_at, user_id, feed_id)
+    VALUES (
+        $1,
+        $2,
+        $3,
+        $4,
+        $5
+    )
+    RETURNING *
 )
-RETURNING
-    *,
-    (SELECT name FROM users u WHERE feed_follows.user_id = u.id) AS user_name,
-    (SELECT name FROM feeds f WHERE feed_follows.feed_id = f.id) AS feed_name;
+SELECT
+    iff.*,
+    f.name AS feed_name,
+    u.name AS user_name
+FROM inserted_feed_follow iff
+JOIN feeds f ON iff.feed_id = f.id
+JOIN users u ON f.user_id = u.id;
 
 -- name: GetFeedFollowsForUser :many
 SELECT
