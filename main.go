@@ -127,13 +127,46 @@ func handleUsers(s *state, cmd command) error {
 	return nil
 }
 
-func handleAgg(s *state, cmd command) error {
+func scrapeFeeds(s *state) error {
 	ctx := context.Background()
-	feed, err := rss.FetchFeed(ctx, "https://www.wagslane.dev/index.xml")
+	nextFeed, err := s.db.GetNextFeedToFetch(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("feed: %v\n", *feed)
+    err = s.db.MarkFeedFetched(ctx, nextFeed.ID)
+	if err != nil {
+		return err
+	}
+
+	feed, err := rss.FetchFeed(ctx, nextFeed.Url)
+	if err != nil {
+		return err
+	}
+
+	for _, feedItem := range feed.Channel.Item {
+		fmt.Printf("Title: %s\n", feedItem.Title)
+	}
+	return nil
+}
+
+func handleAgg(s *state, cmd command) error {
+	if len(cmd.args) < 1 {
+		return fmt.Errorf("command agg expects a time_between_reqs\n")
+	}
+	timeBetweenReqs, err := time.ParseDuration(cmd.args[0])
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Collecting feeds every %v\n", timeBetweenReqs)
+	ticker := time.NewTicker(timeBetweenReqs)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		err = scrapeFeeds(s)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
