@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,7 +13,7 @@ import (
 	"github.com/harryyu02/gator/internal/database"
 	"github.com/harryyu02/gator/internal/rss"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 )
 
 type state struct {
@@ -145,6 +146,29 @@ func scrapeFeeds(s *state) error {
 
 	for _, feedItem := range feed.Channel.Item {
 		fmt.Printf("Title: %s\n", feedItem.Title)
+		pubDate, err := time.Parse(time.RFC1123Z, feedItem.PubDate)
+		if err != nil {
+			return err
+		}
+		_, err = s.db.CreatePost(ctx, database.CreatePostParams{
+			ID: uuid.New(),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			Title: feedItem.Title,
+			Url: feedItem.Link,
+			Description: feedItem.Description,
+			PublishedAt: pubDate,
+			FeedID: nextFeed.ID,
+		})
+		if err != nil {
+			if pgErr, ok := err.(*pq.Error); ok {
+				if pgErr.Code == "23505" {
+					continue
+				} else {
+					return err
+				}
+			}
+		}
 	}
 	return nil
 }
@@ -280,6 +304,31 @@ func handleUnfollow(s *state, cmd command, user database.User) error {
 	return nil
 }
 
+func handleBrowse(s *state, cmd command, user database.User) error {
+	limit := int32(2)
+	if len(cmd.args) > 0 {
+		l, err := strconv.ParseInt(cmd.args[0], 10, 32)
+		if err != nil {
+			return err
+		} else {
+			limit = int32(l)
+		}
+	}
+
+	posts, err := s.db.GetPostsForUser(context.Background(), database.GetPostsForUserParams{
+		UserID: user.ID,
+		Limit: limit,
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, post := range posts {
+		fmt.Printf("%s\n", post.Title)
+	}
+	return nil
+}
+
 func main() {
 	cfg, err := config.Read()
 	if err != nil {
@@ -309,6 +358,7 @@ func main() {
 	appCommands.register("follow", middlewareLoggedIn(handleFollow))
 	appCommands.register("following", middlewareLoggedIn(handleFollowing))
 	appCommands.register("unfollow", middlewareLoggedIn(handleUnfollow))
+	appCommands.register("browse", middlewareLoggedIn(handleBrowse))
 
 	args := os.Args
 	if len(args) < 2 {
